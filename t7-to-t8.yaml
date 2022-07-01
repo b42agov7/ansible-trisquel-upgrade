@@ -1,0 +1,56 @@
+---
+# version 0.1
+# b42agov7
+# 2022-07-01
+- name: Trisquel upgrade, 7 to 8.
+  hosts: YOUR-HOSTS
+  remote_user: YOUR-REMOTE-USER
+  become: yes
+  vars:
+    file_name_in_sources_list_d: "YOUR-FILE"
+
+  tasks:
+    - name: Check if sources.list file exists.
+      stat:
+        path: "/etc/apt/sources.list"
+      register: file_sources_list
+
+    - name: Check if a file in /etc/apt/sources.list.d/ exists.
+      stat:
+        path: "/etc/apt/sources.list.d/{{ file_name_in_sources_list_d }}"
+      register: trisquel_repos_added_by_ansible_list
+
+    - name: Upgrade Trisquel 7 to Trisquel 8 (source.list).
+      when: (ansible_facts['distribution'] == "Trisquel GNU/Linux" and ansible_facts['distribution_major_version'] == "8" and file_sources_list.stat.exists)
+      replace:
+        path: "/etc/apt/sources.list"
+        regexp: "belenos"
+        replace: "flidas"
+
+    - name: Upgrade Trisquel 7 to Trisquel 8 (sources.list.d/).
+      when: (ansible_facts['distribution'] == "Trisquel GNU/Linux" and ansible_facts['distribution_major_version'] == "8" and trisquel_repos_added_by_ansible_list.stat.exists)
+      replace:
+        path: "/etc/apt/sources.list.d/{{ file_name_in_sources_list_d }}"
+        regexp: "belenos"
+        replace: "flidas"
+
+    - name: Update repositories.
+      apt:
+        update_cache: yes
+
+    - name: Upgrade the system.
+      apt:
+        upgrade: dist
+        autoremove: yes
+
+    - name: Reboot the system.
+      shell: "sleep 10 && reboot"
+      async: 1
+      poll: 0
+
+    - name: Wait for the machine to come back online.
+      wait_for_connection:
+        connect_timeout: 100
+        sleep: 5
+        delay: 5
+        timeout: 300
